@@ -597,8 +597,8 @@ def _get_ref_pscns(samples, genome, region_group, const_regions, modified_ref_cn
             if i > 0:
                 if ref_pscns[sample_id] != pscn:
                     common.log(
-                        'ERROR: Input BED file {} contains non-matching entries for sample {} and region group {}'
-                            .format(modified_ref_cns.filename, samples[sample_id], region_group.name))
+                        'ERROR: Input BED file {} contains non-matching entries for sample {} and region group {}. {} provided from --modify-ref, expecting {}'
+                            .format(modified_ref_cns.filename, samples[sample_id], region_group.name. ref_pscns[sample_id], pscn))
                     ref_agcns[sample_id] = ref_pscns[sample_id] = None
                 continue
 
@@ -612,7 +612,7 @@ def _get_ref_pscns(samples, genome, region_group, const_regions, modified_ref_cn
 
 
 def find_reliable_psvs(region_group_extra, samples, genome, modified_ref_cns, out, *,
-        min_samples, reliable_threshold, max_agcn):
+        min_samples, reliable_threshold, max_agcn, close_psv_dist=100):
     # ===== Setting up variables =====
     psvs = region_group_extra.psvs
     n_psvs = len(psvs)
@@ -639,7 +639,7 @@ def find_reliable_psvs(region_group_extra, samples, genome, modified_ref_cns, ou
 
     timer_start = perf_counter()
     _calculate_psv_info_content(group_name, psv_infos, min_samples, out.psv_filtering)
-    _filter_close_psvs(psv_infos, out.psv_filtering, close_psv_dist=100)
+    _filter_close_psvs(psv_infos, out.psv_filtering, close_psv_dist=close_psv_dist)
     em_psv_ixs = np.array([psv_info.psv_ix for psv_info in psv_infos if psv_info.in_em])
     if not len(em_psv_ixs):
         return

@@ -469,7 +469,7 @@ class Interval:
         return self._chrom_id == chrom_id and self._start <= pos < self._end
 
     def __repr__(self):
-        return 'Region(chrom_id={}, start={:,}, end={:,})'.format(self._chrom_id, self._start, self._end)
+        return 'Interval(chrom_id={}, start={:,}, end={:,})'.format(self._chrom_id, self._start, self._end)
 
     @staticmethod
     def combine_overlapping(intervals, max_dist=1):

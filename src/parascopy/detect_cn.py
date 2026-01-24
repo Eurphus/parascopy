@@ -546,7 +546,7 @@ def analyze_region(interval, subdir, data, samples, bg_depth, model_params, forc
                 time_log.log('Group {}: Run EM to find reliable PSVs'.format(group_name))
                 paralog_cn.find_reliable_psvs(group_extra, samples, genome, modified_ref_cns, out,
                     min_samples=args.min_samples, reliable_threshold=args.reliable_threshold[1],
-                    max_agcn=args.pscn_bound[0])
+                    max_agcn=args.pscn_bound[0], close_psv_dist=args.close_psv_dist)
                 model_params.set_psv_f_values(group_extra, genome)
             group_extra.set_reliable_psvs(*args.reliable_threshold)
 
@@ -891,7 +891,7 @@ class InCopyNums:
         self._filename = filename
 
         n_samples = len(samples)
-        sample_regions = [[] for _ in range(n_samples)]
+        sample_regions: list[list[tuple[Interval, int]]] = [[] for _ in range(n_samples)]
         with common.open_possible_gzip(filename) as inp:
             for line in inp:
                 if line.startswith('#'):
@@ -914,7 +914,7 @@ class InCopyNums:
                 for sample_id in sample_ids:
                     sample_regions[sample_id].append(pair)
 
-        self._trees = []
+        self._trees: list[itree.MultiNonOverlTree | None] = []
         region_getter = operator.itemgetter(0)
         for regions in sample_regions:
             if not regions:
@@ -933,12 +933,13 @@ class InCopyNums:
             return ()
         return tuple(tree.overlap_iter(region))
 
-    def from_regions(self, regions, sample_id, sample=None, genome=None, ploidy=2):
+    def from_regions(self, regions, sample_id, sample=None, genome=None, ploidy: int = 2):
         """
         Returns pair:
             - tuple of copy numbers for each region (use ploidy when unknown).
             - total number of unknown copy numbers (where ploidy was used).
         """
+        
         tree = self._trees[sample_id]
         n_regions = len(regions)
         if tree is None:
@@ -959,11 +960,25 @@ class InCopyNums:
                     region.to_str(genome) if genome else region))
                 return None, n_regions
             elif not cn_regions[0][0].contains(region):
-                common.log('ERROR: Input BED file {} contains non-matching entries for sample {} and region {}'.format(
+                overlap_0 = cn_regions[0][0].intersection_size(region)
+                overlap_0_percent = overlap_0 / len(region) if len(region) > 0 else 0
+
+                if overlap_0_percent > 0.9:
+                    common.log('WARNING: Input BED file {} contains non-matching entries for sample {} and region {}. Override active as overlap exceeds 90% (Overlap {}).'.format(
+                    self._filename,
+                    sample if sample else '#{}'.format(sample_id),
+                    region.to_str(genome) if genome else region,
+                    overlap_0_percent))
+                    common.log(cn_regions)
+
+                    pscn.append(cn_regions[0][1])
+                else:
+                    common.log('WARNING: Input BED file {} contains non-matching entries for sample {} and region {}. Using default ploidy.'.format(
                     self._filename,
                     sample if sample else '#{}'.format(sample_id),
                     region.to_str(genome) if genome else region))
-                return None, n_regions
+                    common.log(cn_regions)
+                    pscn.append(ploidy)
             else:
                 pscn.append(cn_regions[0][1])
         return tuple(pscn), n_unknown
@@ -1095,12 +1110,16 @@ def parse_args(prog_name, in_argv, is_new):
                 '- aggregate copy number is higher than <int>[1]           [default: {}],\n'
                 '- number of possible psCN tuples is higher than <int>[2]  [default: {}].')
                 .format(*DEFAULT_PSCN_BOUND))
+        par_det_args.add_argument('--close-psv-dist', type=int, metavar='<int>', default=100,
+            help='Filter out PSVs that are within <int> bp of each other. Decreasing may increase read-bias [default: %(default)s].')
     else:
         par_det_args.add_argument('--reliable-threshold', type=float, metavar='<float> <float>', nargs=2,
             help='PSV-reliability thresholds (reliable PSV has all f-values over the threshold).\n'
                 'First value is used for gene conversion detection,\n'
                 'second value is used to estimate paralog-specific CN.\n'
                 'Default: use reliable thresholds from <model>.')
+        par_det_args.add_argument('--close-psv-dist', type=int, metavar='<int>', default=100,
+            help='Filter out PSVs that are within <int> bp of each other. Decreasing may increase read-bias [default: %(default)s].')
 
     exec_args = parser.add_argument_group('Execution parameters')
     exec_args.add_argument('--rerun', choices=('full', 'partial', 'none'), metavar='full|partial|none', default='none',
