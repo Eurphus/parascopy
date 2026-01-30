@@ -427,7 +427,11 @@ class BamWrapper:
 
     def open_bam_file(self, genome):
         genome_filename = genome if isinstance(genome, str) else genome.filename
-        return pysam.AlignmentFile(self._filename, reference_filename=genome_filename, require_index=True)
+        try:
+            return pysam.AlignmentFile(self._filename, reference_filename=genome_filename, require_index=True)
+        except Exception as e:
+            common.log(f"Failed on sample '{self._filename}'")
+            raise e
 
     def read_groups(self):
         return self._read_groups
