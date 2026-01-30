@@ -430,7 +430,7 @@ class BamWrapper:
         try:
             return pysam.AlignmentFile(self._filename, reference_filename=genome_filename, require_index=True)
         except Exception as e:
-            common.log(f"Failed on sample '{self._filename}")
+            common.log(f"Failed on sample '{self._filename}'")
             raise e
 
     def read_groups(self):
